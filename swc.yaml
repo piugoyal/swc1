@@ -1,0 +1,87 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: sylva-secret
+spec:
+  data:
+  - secretKey: secrets
+    remoteRef:
+      key: common/capo
+      property: secrets
+  refreshInterval: 1m
+  secretStoreRef:
+    kind: SecretStore
+    name: team-secret-store
+  target:
+    name: sylva-secret
+---
+apiVersion: workloadclusteroperator.sylva/v1alpha1
+kind: SylvaWorkloadCluster
+metadata:
+  name: wc1
+spec:
+  k8sVersion: "1.35"
+  sylvaSourceVersion:
+    branch: main
+  infrastructure: openstack
+  controlPlane:
+    provider: rke2
+    replicas: 1
+  machineDeployments:
+    md1:
+      replicas: 0
+  sylvaUnitsReleasePresets:
+  - default
+  - abc
+  valuesFrom:
+  - type: ExternalSecret
+    name: sylva-secret
+    valuesKey: secrets
+  overridingValues:
+    security:
+      os_images:
+        skip_signing_check: true
+      oci_artifacts:
+        skip_signing_check: true
+    openstack:
+      storageClass:
+        name: "cinder-ceph-ssd"
+        type: "ceph_ssd"
+    proxies:
+      http_proxy: "http://proxy.rd.francetelecom.fr:8080"
+      https_proxy: "http://proxy.rd.francetelecom.fr:8080"
+      no_proxy: "127.0.0.0/8,localhost,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.sylva"
+    registry_mirrors:
+      default_settings:
+        skip_verify: true
+        override_path: true
+      hosts_config:
+        docker.io:
+          - mirror_url: https://172.20.136.39/v2/proxy_cache_docker.io
+        quay.io:
+          - mirror_url: https://172.20.136.39/v2/proxy_cache_quay.io
+        registry.gitlab.com:
+          - mirror_url: https://172.20.136.39/v2/proxy_cache_registry.gitlab.com
+        ghcr.io:
+          - mirror_url: https://172.20.136.39/v2/proxy_cache_ghcr.io
+        registry.k8s.io:
+          - mirror_url: https://172.20.136.39/v2/proxy_cache_registry.k8s.io
+        gcr.io:
+          - mirror_url: https://172.20.136.39/v2/proxy_cache_gcr.io
+        registry.suse.com:
+          - mirror_url: https://172.20.136.39/v2/proxy_cache_registry.suse.com
+        registry.opensuse.org:
+          - mirror_url: https://172.20.136.39/v2/proxy_cache_registry.opensuse.org
+    oci_registry_insecure: true
+  clusterSettings:
+    capo:
+      resources_tag: rke2-capo
+      ssh_key_name: sylva-vm
+      network_id: 607511b1-295d-405f-a919-8ab76ebaf721
+      flavor_name: 'B1.large24'
+      os_image_selector:
+        os: ubuntu
+        hardened: true
+      rootVolume:
+        diskSize: 100
+        volumeType: ceph_ssd
